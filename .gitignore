@@ -1,0 +1,5 @@
+.pio/
+.pio-core/
+.build-temp/
+.vscode/
+__pycache__/

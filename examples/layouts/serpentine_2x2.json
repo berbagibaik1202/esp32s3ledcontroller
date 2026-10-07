@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "panel_profile_id": "p25_64x32_scan16",
+  "canvas_width": 128,
+  "canvas_height": 64,
+  "panels": [
+    { "chain_index": 0, "x": 0, "y": 0, "rotation": 0 },
+    { "chain_index": 1, "x": 64, "y": 0, "rotation": 0 },
+    { "chain_index": 3, "x": 0, "y": 32, "rotation": 0 },
+    { "chain_index": 2, "x": 64, "y": 32, "rotation": 0 }
+  ]
+}
