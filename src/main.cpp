@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <LittleFS.h>
 #include <esp_heap_caps.h>
 #include <esp_system.h>
 #include "board/board_profile.h"
@@ -10,6 +11,9 @@
 #include "media/bmp.h"
 #include "media/builtin_image.h"
 #include "media/image_renderer.h"
+#include "media/jpeg.h"
+#include "media/builtin_jpeg.h"
+#include "media/file_image.h"
 
 namespace {
 constexpr size_t kPsramTestBytes = 64U * 1024U;
@@ -30,11 +34,75 @@ uint32_t diagnosticStep = 0;
 media::BmpImage demoImage;
 bool imageReady = false;
 unsigned imageModeIndex = 0;
+media::JpegImage demoJpeg(allocateCanvas, heap_caps_free);
+bool jpegReady = false;
+unsigned jpegModeIndex = 0;
+bool filesystemReady = false;
+media::FileImage flashImage(allocateCanvas, heap_caps_free);
+class FlashReader : public media::FileReader {
+ public:
+  explicit FlashReader(fs::File& file) : file_(file) {}
+  size_t size() const override { return file_.size(); }
+  size_t read(uint8_t* output, size_t count) override { return file_.read(output, count); }
+ private:
+  fs::File& file_;
+};
+void printStorage() {
+  if (!filesystemReady) { Serial.println("LittleFS unavailable; upload filesystem image first"); return; }
+  Serial.printf("LittleFS: used=%u total=%u bytes\n", static_cast<unsigned>(LittleFS.usedBytes()),
+      static_cast<unsigned>(LittleFS.totalBytes()));
+  auto directory = LittleFS.open("/media");
+  if (!directory || !directory.isDirectory()) { Serial.println("/media unavailable"); return; }
+  auto file = directory.openNextFile();
+  while (file) {
+    Serial.printf("  %s %u bytes\n", file.name(), static_cast<unsigned>(file.size()));
+    file.close(); file = directory.openNextFile();
+  }
+}
+void renderFlashImage(const char* path) {
+  if (!filesystemReady || !memoryPassed) { Serial.println("[FAIL] Storage/PSRAM unavailable"); return; }
+  auto file = LittleFS.open(path, "r");
+  if (!file || file.isDirectory()) { Serial.println("[FAIL] Media file unavailable"); return; }
+  FlashReader reader(file);
+  const char* error = nullptr;
+  if (!flashImage.load(path, reader, error)) { Serial.printf("[FAIL] File image: %s\n", error); return; }
+  file.close();
+  media::ImageRenderOptions options;
+  options.width = canvas.width(); options.height = canvas.height();
+  if (!media::renderImage(flashImage.source(), canvas, options, error)) {
+    Serial.printf("[FAIL] File render: %s\n", error); return;
+  }
+  canvas.present();
+  Serial.printf("[INFO] Rendered %s from LittleFS; HUB75 remains blank\n", path);
+}
 
 void printMedia() {
-  Serial.printf("Media: builtin BMP, ready=%s source=%ux%u next_mode=%s (no file storage yet)\n",
+  Serial.printf("Media: builtin BMP, ready=%s source=%ux%u next_mode=%s\n",
       imageReady ? "YES" : "NO", demoImage.width(), demoImage.height(),
       media::scaleModeName(static_cast<media::ScaleMode>(imageModeIndex)));
+  Serial.printf("JPEG: decoded=%s source=%ux%u next_mode=%s workspace_bytes=%u\n",
+      jpegReady ? "YES" : "NO", demoJpeg.width(), demoJpeg.height(),
+      media::scaleModeName(static_cast<media::ScaleMode>(jpegModeIndex)),
+      static_cast<unsigned>(media::JpegImage::decoderWorkspaceBytes()));
+}
+
+void renderDemoJpeg() {
+  if (!memoryPassed) { Serial.println("[FAIL] JPEG requires valid PSRAM baseline"); return; }
+  const char* error = nullptr;
+  if (!jpegReady) {
+    jpegReady = demoJpeg.open(media::kExampleJpeg, sizeof media::kExampleJpeg, error);
+    if (!jpegReady) { Serial.printf("[FAIL] JPEG decode: %s\n", error); return; }
+    Serial.println("[PASS] Builtin JPEG decoded to owned RGB565 pixels in PSRAM");
+  }
+  media::ImageRenderOptions options;
+  options.width = canvas.width(); options.height = canvas.height();
+  options.mode = static_cast<media::ScaleMode>(jpegModeIndex);
+  if (!media::renderImage(demoJpeg.source(), canvas, options, error)) {
+    Serial.printf("[FAIL] JPEG render: %s\n", error); return;
+  }
+  if (!canvas.present()) { Serial.println("[FAIL] Canvas unavailable"); return; }
+  Serial.printf("[INFO] Rendered builtin JPEG with %s; HUB75 remains blank\n", media::scaleModeName(options.mode));
+  jpegModeIndex = (jpegModeIndex + 1) % 5;
 }
 
 void renderDemoImage() {
@@ -126,7 +194,8 @@ void initializeCanvas() {
 
 void printHelp() {
   Serial.println("s=status, w=Wi-Fi scan, p=profile, j=profile JSON, d=diagnostic, l=layout, n=next layout, k=layout JSON");
-  Serial.println("b=render BMP/next scaler mode, m=media info, h=help");
+  Serial.println("b=render BMP/next scaler mode, i=render JPEG/next scaler mode, m=media info, h=help");
+  Serial.println("f=LittleFS info/list, o=flash test_bars.bmp, v=flash test_bars.jpg");
   Serial.println("Diagnostics render to memory only. HUB75 remains blank.");
 }
 
@@ -180,7 +249,7 @@ void setup() {
   Serial.begin(115200);
   const uint32_t waitStart = millis();
   while (!Serial && millis() - waitStart < 2000U) delay(10);
-  Serial.println("\nLED Controller / layout + BMP image preparation / 0.4.0");
+  Serial.println("\nLED Controller / LittleFS media preparation / 0.6.0");
   board::printProfile();
   Serial.printf("Chip=%s revision=%u cores=%u CPU=%u MHz reset_reason=%d\n",
                 ESP.getChipModel(), ESP.getChipRevision(), ESP.getChipCores(),
@@ -195,6 +264,8 @@ void setup() {
   memoryPassed = sizesMatch && samplePassed;
   Serial.printf("[%s] N16R8 memory baseline\n", memoryPassed ? "PASS" : "FAIL");
   initializeCanvas();
+  filesystemReady = LittleFS.begin(false);
+  Serial.printf("[%s] LittleFS mount (automatic format disabled)\n", filesystemReady ? "PASS" : "FAIL");
   const char* imageError = nullptr;
   imageReady = demoImage.open(media::kExampleBmp, sizeof media::kExampleBmp, imageError);
   if (!imageReady) Serial.printf("[FAIL] Builtin BMP: %s\n", imageError);
@@ -211,7 +282,11 @@ void loop() {
     switch (Serial.read()) {
       case 's': printStatus(); printCanvas(); printLayout(); break;
       case 'b': renderDemoImage(); break;
+      case 'i': renderDemoJpeg(); break;
       case 'm': printMedia(); break;
+      case 'f': printStorage(); break;
+      case 'o': renderFlashImage("/media/test_bars.bmp"); break;
+      case 'v': renderFlashImage("/media/test_bars.jpg"); break;
       case 'l': printLayout(); break;
       case 'n': if (activateLayout((layoutPreset + 1) % 5)) nextDiagnostic(); break;
       case 'k': {

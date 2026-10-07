@@ -1,6 +1,9 @@
 param(
     [ValidateSet('esp32s3_n16r8_usb', 'esp32s3_n16r8_uart')]
-    [string]$Environment = 'esp32s3_n16r8_usb'
+    [string]$Environment = 'esp32s3_n16r8_usb',
+    [ValidateSet('build', 'buildfs', 'uploadfs')]
+    [string]$Target = 'build',
+    [string]$UploadPort = ''
 )
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -13,7 +16,10 @@ try {
     New-Item -ItemType Directory -Force -Path $buildTemp | Out-Null
     $env:TEMP = $buildTemp
     $env:TMP = $buildTemp
-    & py -m platformio run -e $Environment
+    $pioArgs = @('-m', 'platformio', 'run', '-e', $Environment)
+    if ($Target -ne 'build') { $pioArgs += @('-t', $Target) }
+    if ($UploadPort) { $pioArgs += @('--upload-port', $UploadPort) }
+    & py @pioArgs
     $buildExit = $LASTEXITCODE
 } finally {
     $env:TEMP = $previousTemp

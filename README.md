@@ -1,7 +1,7 @@
 # ESP32-S3 HUB75 LED Media Controller
 
-Tahap sekarang: **M0 + profil, framebuffer, diagnostic, layout, dan gambar BMP**,
-belum driver output display, playback terjadwal, atau Web UI. Firmware versi 0.4.0.
+Tahap sekarang: **M0 + profil, framebuffer, diagnostic, layout, dan gambar BMP/JPEG**,
+belum driver output display, playback terjadwal, atau Web UI. Firmware versi 0.6.0.
 Spesifikasi produk ada di [prd.md](prd.md).
 
 Verifikasi software pada 7 Oktober 2026: build native USB dan UART berhasil
@@ -78,6 +78,7 @@ merah dirender dalam memori. Profile belum tervalidasi pada hardware.
 | `n` | Beralih ke preset layout berikutnya dan render ulang |
 | `k` | Export layout sebagai JSON |
 | `b` | Render BMP contoh dan beralih ke mode scaler berikutnya |
+| `i` | Decode/render JPEG contoh dan beralih ke mode scaler berikutnya |
 | `m` | Informasi media contoh dan mode scaler berikutnya |
 | `h` | Bantuan |
 
@@ -144,7 +145,7 @@ Tes layout juga memeriksa pemetaan semua pixel, empat rotasi, area kosong,
 overlap/batas/chain invalid, round-trip JSON, transfer chain, kapasitas buffer,
 penolakan buffer yang tumpang tindih, dan penerapan RGB order.
 
-## Media gambar — tahap awal M8
+## Media gambar — M8 software
 
 BMP 24-bit BI_RGB dengan BITMAPINFOHEADER 40 byte sudah didukung. Decoder
 menerima orientasi top-down/bottom-up, padding baris 4 byte, dan biSizeImage nol
@@ -173,7 +174,7 @@ area sisa atau menggantinya dengan warna background.
 
 Perintah `b` merender contoh [test_bars.bmp](examples/media/test_bars.bmp)
 4x2 ke canvas aktif, bergiliran FIT/FILL/CROP/CENTER/STRETCH. Ini contoh built-in
-di firmware, belum pembacaan file flash, upload, playlist, atau JPEG. Hasil tetap
+di firmware, belum pembacaan file flash, upload, atau playlist. Hasil tetap
 di memori dan HUB75 blank. CENTER/CROP pada contoh kecil akan tampak kecil saat
 nanti output panel tersedia.
 
@@ -182,6 +183,45 @@ Fixture BMP dan header byte firmware dapat dibuat ulang dengan
 input terpotong, header invalid, orientasi/padding/warna, rollback sumber, mode
 scaler, clipping, preservation background, dan canvas 1x1. Lima preview media
 PPM dihasilkan di `.build-temp/previews/` bersama sembilan preview diagnostic.
+
+### JPEG baseline
+
+Adapter memakai [JPEGDEC](https://github.com/bitbank2/JPEGDEC) yang dipin ke
+commit `86282979224c8a32fd51e091ed5a35b0c699a52b`. Angka versi pada manifest
+upstream berbeda dari library.properties; commit menjadi acuan dependency.
+Tidak ada pembaruan otomatis ke HEAD.
+
+Input maksimal 1 MiB dan 128x64, baseline Huffman 8-bit single-scan, grayscale
+atau YCbCr. Progressive, arithmetic, CMYK/RGB component IDs, multi-scan,
+header/dimensi invalid, EOI hilang, serta data tambahan setelah EOI ditolak.
+Exif orientation belum diterapkan; orientasi harus disiapkan pada sumber.
+
+Decoder menghasilkan image RGB565 milik adapter; byte JPEG hanya diperlukan
+selama decode. Sumber lama dipertahankan jika parsing, alokasi, atau decoding
+gagal. Candidate pixel buffer dan coverage bitmap dialokasikan sebelum decode;
+workspace decoder berada di heap, lalu dilepas setelah decode. Firmware memakai
+allocator PSRAM untuk ketiganya. Peak memory mencakup gambar lama, candidate,
+bitmap, dan workspace; `m` melaporkan ukuran workspace pada build aktual.
+
+Adapter memeriksa seluruh pixel keluar satu kali dan konsumsi bit tidak melewati
+entropy yang tersedia. Pemeriksaan entropy bergantung pada layout state JPEGDEC
+yang dipin, dengan static assertion saat compile; perubahan commit dependency
+harus disertai validasi ulang integrasi. Ini menangani kasus decoder melaporkan
+sukses pada stream terpotong meski EOI masih tersedia.
+
+Perintah `i` mendecode [test_bars.jpg](examples/media/test_bars.jpg) 32x16 sekali,
+kemudian merendernya bergiliran FIT/FILL/CROP/CENTER/STRETCH. Render tetap ke
+memori, belum output HUB75. Kegagalan pertama dapat dicoba ulang dengan `i`.
+
+Tes komputer meliputi toleransi warna JPEG lossy, grayscale, 4:2:0/4:2:2 dengan
+dimensi bukan kelipatan MCU, ukuran maksimum dan refill buffer entropy, semua
+prefix file terpotong, entropy terpotong dengan EOI tersisa, progressive, sumber
+oversize, input yang diubah setelah decode, serta kegagalan kedua alokasi dan ownership.
+
+Fixture dan header built-in dapat dibuat ulang menggunakan
+`py tools/generate-test-jpeg.py`. Generasi memerlukan Pillow 12.3.0; dependency
+ini hanya untuk generator, bukan build firmware atau tes normal. Contoh instalasi
+lokal proyek: `py -m pip install --target .build-temp/python-packages --no-cache-dir Pillow==12.3.0`.
 
 ## Struktur dan tahap berikutnya
 
@@ -192,6 +232,7 @@ PPM dihasilkan di `.build-temp/previews/` bersama sembilan preview diagnostic.
 - `src/display/diagnostics.*`: pola logical canvas; belum mengendalikan pin.
 - `src/display/panel_layout.*`: validasi/import/export layout dan pemetaan koordinat chain.
 - `src/media/bmp.*`: decoder BMP view tanpa alokasi heap.
+- `src/media/jpeg.*`: adapter JPEGDEC, decoding transaksional, image RGB565 owned.
 - `src/media/image_renderer.*`: scaler dan render ke back buffer.
 - `partitions.csv`: dua slot aplikasi 3 MiB, filesystem 9 MiB, cadangan sistem.
   Dua slot baru menyediakan ruang; implementasi OTA/rollback belum tersedia.
@@ -207,3 +248,36 @@ Referensi konfigurasi:
 [USB CDC Espressif](https://docs.espressif.com/projects/arduino-esp32/en/latest/tutorials/cdc_dfu_flash.html).
 Kontrak BMP mengikuti [BITMAPINFOHEADER](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapinfoheader)
 dan [BITMAPFILEHEADER](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapfileheader).
+# Media LittleFS (0.6.0)
+
+Contoh media flash berada di `data/media/test_bars.bmp` dan `test_bars.jpg`.
+LittleFS memakai partisi 9 MiB berlabel `spiffs`; isi partisi memakai format
+LittleFS. Boot memanggil mount tanpa format otomatis. Jika mount gagal, contoh
+built-in dan diagnostik tetap tersedia.
+
+Buat image filesystem tanpa board:
+
+```powershell
+powershell -NoProfile -File tools/build.ps1 -Target buildfs
+```
+
+Ketika board tersedia, upload filesystem dengan port board yang sesuai:
+
+```powershell
+powershell -NoProfile -File tools/build.ps1 -Target uploadfs -UploadPort COM5
+```
+
+Upload tersebut mengganti seluruh isi partisi filesystem dengan folder `data`.
+Firmware diupload terpisah. Tutup serial monitor sebelum upload.
+Gunakan serial `f` untuk kapasitas/daftar media, `o` untuk BMP flash, dan `v`
+untuk JPEG flash. Render memakai FIT pada canvas; output HUB75 belum tersedia.
+
+Loader membaca file maksimal 1 MiB ke PSRAM, menerima pembacaan parsial,
+dan mempertahankan gambar aktif ketika read/decode/alokasi gagal. Path API
+dibatasi `/media/<nama>.bmp`, `.jpg`, atau `.jpeg` dengan ekstensi huruf kecil,
+tanpa subdirektori/traversal. BMP mempertahankan byte sumber; JPEG melepas
+byte file setelah decode RGB565 berhasil. Tes komputer memeriksa rollback,
+pergantian format, kepemilikan memori, serta batas path/ukuran. Mount dan
+pembacaan flash pada ESP32 masih menunggu pengujian hardware.
+
+Konfigurasi filesystem mengikuti [dokumentasi PlatformIO ESP32](https://docs.platformio.org/en/latest/platforms/espressif32.html#uploading-files-to-file-system-spiffs).

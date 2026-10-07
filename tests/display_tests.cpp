@@ -165,9 +165,13 @@ void testDiagnostics() {
 
 void testLayouts();
 void testMedia();
+void testJpeg();
+void testFileImages();
 int main() {
   testProfiles(); testBuffers(); testDiagnostics();
   testLayouts();
   testMedia();
+  testJpeg();
+  testFileImages();
   std::cout << "All software tests passed. Hardware output not tested.\n";
 }

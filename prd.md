@@ -1973,6 +1973,14 @@ Sebelum rilis, target sementara bagian 61 harus dikonfirmasi lewat pengukuran at
 
 # 68. STATUS IMPLEMENTASI — 7 OKTOBER 2026
 
+Tambahan versi 0.6.0: filesystem LittleFS 9 MiB, mount tanpa format otomatis,
+loader BMP/JPEG dari flash dengan batas file 1 MiB dan rollback gambar aktif.
+Contoh media disertakan dalam folder data; buildfs/uploadfs tersedia melalui
+tools/build.ps1. Pengelolaan/upload media melalui Web UI, persistensi scene,
+dan recovery power loss saat menulis masih belum diimplementasikan. Tes host
+memeriksa pembacaan parsial/terputus, pergantian format, alokasi gagal, serta
+batas path dan ukuran. Mount dan baca flash nyata belum diuji.
+
 Status berikut adalah progres implementasi, bukan pengganti acceptance criteria.
 
 | Area/milestone | Progres software | Validasi hardware |
@@ -1983,10 +1991,12 @@ Status berikut adalah progres implementasi, bukan pengganti acceptance criteria.
 | M6 Virtual Canvas | RGB565 front/back, clipping, swap CPU, dan rollback alokasi; diuji di komputer | PSRAM runtime dan sinkronisasi backend belum diuji |
 | Diagnostic | Sembilan pola dirender ke canvas; tersedia lewat serial dan preview PPM pada tes komputer | Scan/address discovery fisik belum tersedia |
 | M7 Multi-panel | Grid horizontal/vertical/matrix/serpentine; custom placement/rotasi, validasi/import/export JSON, mapper canvas dan chain row-major; tes komputer lulus | Output chain/refresh fisik belum diuji |
-| M8 Gambar | BMP 24-bit BI_RGB/header 40 byte, validasi file, top-down/bottom-up, ImageSource RGB565, lima mode scaler, contoh built-in; tes komputer lulus. JPEG dan file storage belum tersedia | Output gambar pada panel belum diuji |
+| M8 Gambar | BMP 24-bit dan JPEG baseline grayscale/YCbCr, ImageSource RGB565, lima mode scaler, decode/alokasi transaksional, contoh built-in; tes komputer lulus. Pembacaan LittleFS tersedia; upload melalui browser belum tersedia | Output gambar pada panel dan performa decoder ESP32 belum diuji |
 | M9–M15 | Teks, video, scene, scheduler, storage management, Web UI, OTA, dan sumber eksternal belum diimplementasikan | Belum diuji |
 
-Firmware tahap ini versi 0.4.0. Tes komputer menjalankan kode C++ yang sama untuk profile, framebuffer, diagnostic, layout, BMP, dan scaler. Validasi input, export round-trip, RGB order, isolasi/rollback buffer, koordinat pola, serpentine/rotasi, orientasi/padding BMP, penolakan data terpotong, serta lima mode gambar sudah lulus. Layout ke chain row-major merupakan tahap software, bukan buffer scan/DMA. Firmware belum menghasilkan clock/latch atau gambar pada HUB75.
+Firmware tahap ini versi 0.6.0. Tes komputer menjalankan kode C++ yang sama untuk profile, framebuffer, diagnostic, layout, BMP/JPEG, dan scaler. Validasi input, export round-trip, RGB order, isolasi/rollback buffer, koordinat pola, serpentine/rotasi, orientasi/padding BMP, baseline JPEG termasuk grayscale dan 4:2:0/4:2:2, penolakan progressive/data terpotong, serta lima mode gambar sudah lulus. Layout ke chain row-major merupakan tahap software, bukan buffer scan/DMA. Firmware belum menghasilkan clock/latch atau gambar pada HUB75.
+
+JPEG memakai JPEGDEC dengan commit dipin; workspace dialokasikan di heap, candidate RGB565 dan coverage diperiksa sebelum commit. Gambar valid sebelumnya dipertahankan saat alokasi atau decoding gagal. Firmware menyediakan serial i untuk decode/render contoh JPEG; dapat membaca BMP/JPEG dari LittleFS melalui serial o/v. Peak memory dan performa decode ESP32 perlu diukur pada hardware sebelum M8 dinyatakan selesai penuh.
 
 Preset layout melalui serial: satu panel, horizontal dua panel, vertical dua panel, matrix 2x2, dan serpentine 2x2. Layout hanya aktif dalam RAM; reboot kembali ke satu panel. Buffer/candidate layout divalidasi sebelum aktivasi dan kegagalan alokasi mempertahankan konfigurasi lama. Rotasi custom didefinisikan searah jarum jam. Area kosong tidak mempunyai tujuan pixel fisik. Implementasi mapping internal CUSTOM, driver lain, dan timing lain tetap belum tersedia.
 
