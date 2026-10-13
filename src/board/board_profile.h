@@ -16,6 +16,7 @@ struct BoardProfile {
   uint32_t expectedPsramBytes;
   Hub75Pins hub75;
   int usbDm, usbDp;
+  int confirmButton;
 };
 
 const BoardProfile& profile();

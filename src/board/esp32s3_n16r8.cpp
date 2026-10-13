@@ -3,11 +3,23 @@
 
 namespace board {
 namespace {
-// Prototype pinout from PRD; validate against the actual board before M1.
+// GPIO assignment finalized with the user for PCB wiring; see WIRING.md.
+// Panel scan/mapping and electrical operation still require hardware validation.
 constexpr BoardProfile kProfile{
     "ESP32S3_DEVKIT_N16R8_PROTOTYPE", 16U * 1024U * 1024U,
     8U * 1024U * 1024U,
-    {4, 5, 6, 7, 15, 16, 8, 9, 10, 11, 12, 13, 14, 18}, 19, 20};
+    {// R1, G1, B1, R2, G2, B2
+     4, 5, 6, 7, 15, 16,
+     // A, B, C, D, E (E reserved; use depends on panel addressing)
+     8, 9, 10, 11, 12,
+     // CLK, LAT, OE
+     13, 14, 18}, 19, 20, 17};
+static_assert(kProfile.confirmButton != kProfile.usbDm &&
+              kProfile.confirmButton != kProfile.usbDp &&
+              kProfile.confirmButton != kProfile.hub75.oe &&
+              kProfile.confirmButton != kProfile.hub75.clk &&
+              kProfile.confirmButton != kProfile.hub75.lat,
+              "Button must not overlap control/USB pins");
 static_assert(kProfile.hub75.oe != kProfile.usbDm &&
               kProfile.hub75.oe != kProfile.usbDp, "USB pins are reserved");
 }
@@ -19,7 +31,7 @@ void holdDisplayBlank() {
   // needed to hold blank during reset, before software can configure GPIO.
   digitalWrite(kProfile.hub75.oe, HIGH);
   pinMode(kProfile.hub75.oe, OUTPUT);
-  // M0 does not clock/latch pixel data or drive the other HUB75 signals.
+  // HUB75 backend takes over these pins only after successful initialization.
 }
 
 void printProfile() {

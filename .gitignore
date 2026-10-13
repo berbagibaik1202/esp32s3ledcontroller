@@ -3,3 +3,4 @@
 .build-temp/
 .vscode/
 __pycache__/
+src/wifi_config.local.h

@@ -1971,35 +1971,181 @@ Refresh diukur dengan alat ukur sinyal atau counter backend tervalidasi. FPS dih
 Sebelum rilis, target sementara bagian 61 harus dikonfirmasi lewat pengukuran atau direvisi eksplisit. HDMI UVC tetap eksplorasi sampai USB host, format capture, bandwidth, dan anggaran memori terbukti pada perangkat aktual.
 ---
 
-# 68. STATUS IMPLEMENTASI — 7 OKTOBER 2026
+# 68. STATUS IMPLEMENTASI - 13 OKTOBER 2026
 
-Tambahan versi 0.6.0: filesystem LittleFS 9 MiB, mount tanpa format otomatis,
-loader BMP/JPEG dari flash dengan batas file 1 MiB dan rollback gambar aktif.
-Contoh media disertakan dalam folder data; buildfs/uploadfs tersedia melalui
-tools/build.ps1. Pengelolaan/upload media melalui Web UI, persistensi scene,
-dan recovery power loss saat menulis masih belum diimplementasikan. Tes host
-memeriksa pembacaan parsial/terputus, pergantian format, alokasi gagal, serta
-batas path dan ukuran. Mount dan baca flash nyata belum diuji.
+Firmware 0.7.0. Status berikut bukan pengganti acceptance terukur bagian 67.
 
-Status berikut adalah progres implementasi, bukan pengganti acceptance criteria.
-
-| Area/milestone | Progres software | Validasi hardware |
+| Area | Implementasi/bukti | Acceptance yang masih terbuka |
 |---|---|---|
-| M0 bring-up | Firmware diagnostik flash/PSRAM/Wi-Fi/USB; build USB dan UART berhasil | Menunggu ESP32 aktual |
-| M1–M3 HUB75 dan multi-scan | BoardProfile tersedia; OE ditahan blank setelah startup; backend output belum dibuat | Menunggu board, panel, buffer, dan PSU |
-| M4 PanelProfile | Parser/export schema v1, validasi geometry/addressing, enam RGB order; hanya STANDARD/GENERIC/SAFE | Profile development belum terbukti pada panel |
-| M6 Virtual Canvas | RGB565 front/back, clipping, swap CPU, dan rollback alokasi; diuji di komputer | PSRAM runtime dan sinkronisasi backend belum diuji |
-| Diagnostic | Sembilan pola dirender ke canvas; tersedia lewat serial dan preview PPM pada tes komputer | Scan/address discovery fisik belum tersedia |
-| M7 Multi-panel | Grid horizontal/vertical/matrix/serpentine; custom placement/rotasi, validasi/import/export JSON, mapper canvas dan chain row-major; tes komputer lulus | Output chain/refresh fisik belum diuji |
-| M8 Gambar | BMP 24-bit dan JPEG baseline grayscale/YCbCr, ImageSource RGB565, lima mode scaler, decode/alokasi transaksional, contoh built-in; tes komputer lulus. Pembacaan LittleFS tersedia; upload melalui browser belum tersedia | Output gambar pada panel dan performa decoder ESP32 belum diuji |
-| M9–M15 | Teks, video, scene, scheduler, storage management, Web UI, OTA, dan sumber eksternal belum diimplementasikan | Belum diuji |
+| M0 | UART COM14, flash 16 MiB, PSRAM 8 MiB, sample memory PASS | Native USB hardware |
+| M1-M2 | HUB75 DMA 3.0.14 pinned, 8 MHz, 6-bit/channel, double buffer; semua pola UI berhasil menurut pengguna pada 128x64 scan 1/32 ABCDE, E=GPIO12 | IC/PSU/buffer, refresh >=100 Hz, ghosting/tearing, benchmark |
+| M3 | UI scan 1/4, 1/8, 1/16, 1/32; brightness tetap 1/255 | Hanya 1/32 sudah diuji fisik; 1/4 dan 1/8 bank linear eksperimen; P5 belum diuji |
+| M4 | Parser/export profile, RGB order, geometry/addressing; tambahan scan 1/4 | Library, CUSTOM mapping/timing, driver tambahan, import Web |
+| M6-M7 | Canvas PSRAM ke back buffer DMA; grid/rotasi/chain mapper diuji host | Output fisik satu modul; multi-panel dan margin beban gabungan |
+| M8 | BMP/JPEG/scaler/LittleFS/upload/hapus/preview; tes host dan HTTP dasar | Benchmark decode/output, kuota sesuai PRD, power-loss upload |
+| M9/M11 awal | Teks + gambar, efek, snapshot PSRAM dan NVS | Scene empat layer, clock, GIF/MJPEG |
+| M13 | AP-only tanpa SSID, sleep off, AP dipertahankan saat STA aktif, retry STA dan log event; UI retry HTTP | Stabilitas HP, autentikasi, password unik, test beban gabungan |
+| Recovery panel | Preview candidate satu kali, 30 detik, confirm/cancel, reboot/timeout kembali ke record committed | Hardware acceptance dicatat bagian 70; checksum/dua salinan, power-loss write belum lengkap |
+| M10/M12/M14/M15 | Video/playlist/scheduler/microSD/OTA/streaming belum tersedia | Backlog |
 
-Firmware tahap ini versi 0.6.0. Tes komputer menjalankan kode C++ yang sama untuk profile, framebuffer, diagnostic, layout, BMP/JPEG, dan scaler. Validasi input, export round-trip, RGB order, isolasi/rollback buffer, koordinat pola, serpentine/rotasi, orientasi/padding BMP, baseline JPEG termasuk grayscale dan 4:2:0/4:2:2, penolakan progressive/data terpotong, serta lima mode gambar sudah lulus. Layout ke chain row-major merupakan tahap software, bukan buffer scan/DMA. Firmware belum menghasilkan clock/latch atau gambar pada HUB75.
+Deskripsi awal panel menyebut scan 1/16. Uji 1/16 menyalakan kolom 16 pixel
+berselang; 1/32 dengan E kemudian menyalakan seluruh LED dan pengguna
+mengonfirmasi semua pola UI berhasil. Ini baseline kombinasi panel aktual,
+bukan klaim semua P2.5/SMD1515/SMD2121 kompatibel. IC driver belum diketahui.
+GPIO19/20 tetap dicadangkan; sumber wiring WIRING.md.
 
-JPEG memakai JPEGDEC dengan commit dipin; workspace dialokasikan di heap, candidate RGB565 dan coverage diperiksa sebelum commit. Gambar valid sebelumnya dipertahankan saat alokasi atau decoding gagal. Firmware menyediakan serial i untuk decode/render contoh JPEG; dapat membaca BMP/JPEG dari LittleFS melalui serial o/v. Peak memory dan performa decode ESP32 perlu diukur pada hardware sebelum M8 dinyatakan selesai penuh.
+Firmware sudah diupload sesuai otorisasi pengguna pada 13 Oktober 2026.
+Tes host memeriksa decoder, canvas, animasi, profile/layout, semua mapping
+1/16 dan bank linear scan 1/4..1/32 tanpa overlap. Tes UI mencakup scan,
+preview/confirm/cancel dan pemulihan status HTTP. Tes software tidak dianggap
+bukti mapping fisik panel lain, refresh, reliability 24 jam, atau power loss.
 
-Preset layout melalui serial: satu panel, horizontal dua panel, vertical dua panel, matrix 2x2, dan serpentine 2x2. Layout hanya aktif dalam RAM; reboot kembali ke satu panel. Buffer/candidate layout divalidasi sebelum aktivasi dan kegagalan alokasi mempertahankan konfigurasi lama. Rotasi custom didefinisikan searah jarum jam. Area kosong tidak mempunyai tujuan pixel fisik. Implementasi mapping internal CUSTOM, driver lain, dan timing lain tetap belum tersedia.
+Urutan berikut: recovery konfigurasi, metrik refresh/FPS/memori, library
+profile, lalu scene/video/playlist. Kriteria belum terbukti tetap terbuka.
 
-Urutan berikutnya: uji M0 pada board aktual, identifikasi panel/IC, pilih backend HUB75, jalankan RGB/row/column/checkerboard, lalu ukur refresh M1/M2. Pekerjaan software lain boleh disiapkan sebelum hardware tersedia, tetapi milestone hardware tidak dinyatakan selesai berdasarkan compile atau preview.
+# 69. ANIMASI TEKS DAN GAMBAR
 
-Panduan build, tes komputer, dan perintah serial tersedia di README.md. Format CUSTOM dan driver tambahan pada bagian 62 tetap merupakan requirement; belum menjadi kemampuan firmware saat ini.
+Bagian 35/40 sudah menetapkan AnimationProvider dan running text. Bagian ini
+menambahkan kontrak efek gambar dan perilaku waktu untuk teks/gambar.
+
+## Kebutuhan
+
+- Teks dan gambar BMP/JPEG dapat ditampilkan statis atau memakai efek berbeda.
+- Efek awal: none, fade, slide-left/right/up/down, blink, dan scroll-left/right/up/down.
+- Animasi beroperasi pada pixel canvas, bukan hanya animasi CSS pada Web UI.
+- Gambar di bawah teks; pixel glyph yang kosong transparan terhadap gambar.
+  Background RGB565 mengisi area kosong. Opacity fade di-blend dalam kanal RGB565.
+- Teks maksimal 192 byte UTF-8, valid UTF-8. Glyph tidak tersedia menjadi satu
+  tanda tanya per codepoint. Font awal 5x7 A-Z/digit dan punctuation terbatas;
+  huruf kecil memakai glyph kapital. Scale integer 1-4. Teks satu baris dan
+  posisi default terpusat; bagian di luar canvas di-clip.
+- Warna teks/background dapat dipilih. Gambar dan teks dapat mempunyai efek
+  berbeda; UI awal memakai satu durasi, kecepatan, dan loop bersama.
+- Durasi fade/slide/blink 200-60000 ms; scroll 1-200 pixel/detik. Pergerakan
+  dihitung dari elapsed time, sehingga frame terlewat tidak memperlambat timeline.
+- Fade/slide berulang: masuk 25%, tahan 50%, keluar 25% dari durasi. Slide keluar
+  ke sisi berlawanan. Fade/slide satu kali masuk selama durasi, lalu tahan tampilan
+  akhir. Blink membagi durasi menjadi separuh tersembunyi/separuh terlihat;
+  satu kali berakhir terlihat.
+- Scroll mulai di luar sisi masuk, melintasi canvas, lalu keluar dengan gap
+  8 pixel. Loop mengulang dari sisi masuk; satu kali berhenti di luar canvas.
+- Pause membekukan timeline; resume melanjutkan posisi; restart mulai dari nol.
+  Efek statis dan efek satu kali yang selesai tidak dirender terus-menerus.
+- Frame lengkap ditulis ke back buffer sebelum present. Tidak ada allocation
+  atau decode JPEG/file read setiap frame. Gambar hasil scaler disnapshot sekali
+  ke PSRAM (maksimal 16 KiB). Penggantian snapshot gagal mempertahankan snapshot lama.
+- Target software tick maksimal 20 FPS; frame terlambat dilewati. Preview browser
+  sekitar 4 FPS saat bergerak dan polling lebih jarang saat diam. Nilai tersebut
+  bukan bukti refresh fisik atau performa hardware yang sudah diukur.
+- Pengaturan animasi/teks disimpan bersama layout/pilihan media pada save,
+  bukan tiap frame. Restart memulihkan pengaturan dan memulai timeline dari nol.
+  Pause dan elapsed time tidak disimpan. Gambar baru lewat Web UI mengambil
+  snapshot baru serta mengulang animasi yang aktif. Diagnostik serial menghentikan
+  playback animasi sementara dan tidak menyimpan perubahan tersebut.
+
+## Acceptance dan status
+
+Tes software wajib mencakup arah/posisi, boundary durasi/loop, one-shot terminal,
+pause/resume, clipping, opacity RGB565, UTF-8 invalid/fallback glyph, penolakan
+parameter tanpa mengganti state, kegagalan alokasi, ownership snapshot, dan
+allocation-free render. Form Web UI diuji untuk serialisasi parameter/warna dan
+batas byte UTF-8. Preview standalone menggunakan frame hasil renderer C++ yang sama.
+
+Implementasi awal: src/media/animation.*, API /api/animation, dan form Teks &
+animasi di Web UI. Belum merupakan scene/playlist engine lengkap empat layer;
+clock, GIF/MJPEG, scheduler, dan pengukuran output HUB75 masih pekerjaan berikutnya.
+Firmware sudah diupload melalui COM14; acceptance animasi beban gabungan masih terbuka.
+
+Verifikasi animasi: build UART, seluruh tes host termasuk animasi, dan tes form Web UI lulus. Preview frame renderer C++ berhasil diperiksa melalui browser headless. Output HUB75 sudah aktif; acceptance animasi penuh masih terbuka.
+
+
+# 70. PREVIEW PANEL DAN PEMULIHAN KONFIGURASI
+
+Perubahan scan/mapping Web UI menggunakan preview sebelum commit.
+POST /api/panel command=preview menulis candidate ke NVS key preview,
+kemudian restart setelah respons. Boot membaca config terakhir, lalu
+menghapus candidate sebelum aktivasi. Penghapusan gagal tidak mengaktifkan
+candidate. Candidate tidak menjadi konfigurasi permanen tanpa konfirmasi.
+
+Preview berlangsung 30 detik setelah Web UI siap pada brightness 1/255.
+command=confirm diterima hanya saat preview aktif, belum kedaluwarsa dan
+backend siap; write gagal tidak membatalkan timeout. command=cancel,
+timeout, kegagalan backend atau reset sebelum konfirmasi kembali ke config
+committed melalui reboot. UI menampilkan waktu tersisa dan tombol konfirmasi.
+Media/Wi-Fi/animasi disimpan terpisah. Input invalid tidak memulai trial.
+
+Batas: belum checksum/dua salinan, trial layout/driver custom, autentikasi,
+atau pembuktian power-loss commit. Default tanpa record valid masih baseline
+1/32 yang diuji; recovery blank generik bagian 65 belum lengkap. Candidate
+tersimpan yang belum sempat boot akan dicoba satu kali pada boot berikutnya.
+
+
+Verifikasi tahap 70 pada 13 Oktober 2026: build UART dan upload COM14 berhasil,
+hash image terverifikasi. Tes Web UI preview/confirm/cancel/countdown dan retry
+HTTP lulus. Boot log menunjukkan HUB75 READY, brightness 1/255, dan record
+tersimpan 1/16 mapping 1 dipertahankan. Tidak mengubah pilihan pengguna menjadi
+1/32 hanya karena baseline pengujian sebelumnya memakai 1/32.
+Uji HTTP end-to-end timeout/cancel/reset/confirm belum dijalankan: Windows
+melaporkan hotspot ESP32 tidak tersedia pada pemindaian, meski log ESP32
+menunjukkan AP READY. Tidak diklaim lulus. Helper tools/test-panel-recovery.py
+tersedia untuk uji yang mempertahankan scan/mapping awal dan jaringan PC.
+Stabilitas hotspot masih perlu dilanjutkan saat akses AP dapat dipakai.
+
+
+Update tombol Simpan scan: sesuai permintaan pengguna, UI tetap menyediakan
+save langsung selain trial 30 detik. POST /api/panel command=save memvalidasi
+scan/mapping, menghapus candidate lama bila ada, menulis record config, lalu
+restart. Save tidak dibatasi timer dan tetap berlaku sesudah restart.
+Trial/confirm/cancel tetap tersedia. Ini pengecualian eksplisit atas alur
+preview wajib bagian 65, atas instruksi pengguna. Brightness tetap 1/255.
+
+
+GPIO17: tombol fisik konfirmasi preview scan. Sambungkan tombol normally-open
+antara GPIO17 dan GND, INPUT_PULLUP, aktif LOW. Tekan singkat saat trial 30 detik
+aktif untuk menyimpan scan/mapping yang sedang diuji. Di luar preview tombol
+hanya mencetak log, tidak restart, tidak mengganti scan, tidak menulis flash.
+Debounce 40 ms, satu event per tekanan, tombol ditahan sejak boot harus dilepas
+sebelum dapat mengonfirmasi. Tombol Web Simpan scan tetap tersedia untuk memilih
+scan langsung. Brightness tetap 1/255. Uji fisik tombol masih perlu dilakukan.
+
+
+Hotspot hilang saat idle: capture 45 detik tidak menunjukkan reboot; uptime
+485-530 detik dan satu client tetap terhubung. Penyebab intermittent belum
+terbukti. Firmware kini mencatat AP START/STOP, running sebenarnya, counter
+start/stop dan reset_reason. Pemeriksaan tiap 5 detik memulihkan AP hanya jika
+AP_STOP terdeteksi atau mode low-level tidak memiliki AP; AP sehat tidak
+restart periodik. Restart disengaja untuk panel dicatat [SYSTEM].
+Pengujian SSID/RF/interferensi/PSU masih perlu dilakukan jika log menunjukkan
+AP tetap running ketika HP tidak melihat SSID. Ini bukan klaim masalah selesai.
+
+
+Uji isolasi RF: pengguna mengonfirmasi SSID muncul kembali ketika DMA HUB75
+dihentikan selama 30 detik. AP tetap running, tidak ada restart atau AP STOP
+baru. Ini mendukung interferensi output terhadap Wi-Fi, bukan bukti gangguan
+password atau watchdog. Firmware mencoba clock LCD 4 MHz dengan build flag
+S3_LCD_DIV_NUM=40 (160 MHz / 40); metadata i2sspeed juga 4 MHz supaya estimasi
+refresh konsisten. Sebelumnya selector HZ_8M pada library S3 dipetakan divider
+16 = 10 MHz; label konfigurasi 8 MHz lama bukan pengukuran clock fisik.
+Target min_refresh_rate diset 100, tetap perlu pengukuran refresh aktual.
+Brightness tetap 1/255, scan/mapping tersimpan tidak berubah.
+Perintah serial z menghentikan DMA 30 detik dan mengembalikan output otomatis.
+SSID dan pola panel perlu diuji bersamaan pada clock baru. Jika gangguan
+berlanjut, posisi antena/ribbon/GND/buffer PCB perlu diperiksa; jangan menutup
+acceptance Wi-Fi berdasarkan pengamatan singkat.
+
+
+Scrolling: batas render sebelumnya 50 ms (20 FPS) + loop delay 10 ms diganti
+interval 16 ms (~60 FPS target) dan loop yield 1 ms. Timeline elapsed tetap,
+sehingga speed pixel/detik tidak berubah. Clock output tetap 4 MHz untuk
+mempertahankan hasil uji RF, brightness 1/255. Status output_fps menghitung
+handoff frame ke DMA per jendela 2 detik, transfer_us waktu transfer terakhir.
+Ini FPS media/frame submission, bukan pengukuran refresh panel. FPS saat
+frame statis nol adalah normal. Target tidak dianggap tercapai tanpa log
+saat animasi aktif; kelancaran visual/Wi-Fi perlu dinilai pengguna.
+
+
+Hasil setelah upload perbaikan scrolling: animasi tersimpan aktif dan handoff
+DMA terukur 49-50 FPS, transfer satu frame sekitar 13,3 ms pada capture serial.
+AP running, brightness 1/255, tidak ada client Wi-Fi selama pengukuran ini.
+Ini bukan benchmark ketika browser/upload aktif atau acceptance 24 jam.
+Target ~60 belum dicapai penuh; capaian nyata 49-50 FPS dicatat tanpa klaim 60.

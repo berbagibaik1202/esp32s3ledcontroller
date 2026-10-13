@@ -68,7 +68,7 @@ bool validateProfile(const PanelProfile& p, const char*& error) {
     return fail(error, "Invalid profile text");
   if (!p.width || !p.height || p.width > 128 || p.height > 64)
     return fail(error, "Dimensions exceed current 128x64 limit");
-  const uint8_t expected = p.scan == 8 ? 3 : p.scan == 16 ? 4 : p.scan == 32 ? 5 : 0;
+  const uint8_t expected = p.scan == 4 ? 2 : p.scan == 8 ? 3 : p.scan == 16 ? 4 : p.scan == 32 ? 5 : 0;
   if (!expected || p.addressLines != expected)
     return fail(error, "Invalid scan/address_lines combination");
   if (p.height % (2U * p.scan) != 0)

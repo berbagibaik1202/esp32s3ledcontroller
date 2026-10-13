@@ -16,4 +16,20 @@ constexpr char kDevelopmentProfileJson[] = R"json({
   "driver": "GENERIC",
   "timing": "SAFE"
 })json";
+constexpr char kHardwareProfileJson[] = R"json({
+  "schema_version": 1,
+  "id": "p25_128x64_scan32",
+  "name": "P2.5 RGB 128x64 1/32 TEST - UNVERIFIED",
+  "pitch": 2.5,
+  "width": 128,
+  "height": 64,
+  "interface": "HUB75E",
+  "scan": 32,
+  "address_lines": 5,
+  "rgb_order": "RGB",
+  "pixel_mapping": "STANDARD",
+  "row_mapping": "STANDARD",
+  "driver": "GENERIC",
+  "timing": "SAFE"
+})json";
 }  // namespace display

@@ -18,7 +18,7 @@ if (Test-Path -LiteralPath $portableCompiler) {
         & $portableCompiler -std=c++11 -isystem $jpegInclude -c "$jpegInclude\JPEGDEC.cpp" -o .build-temp/native-tests/jpegdec.o
         if ($LASTEXITCODE -ne 0) { throw 'JPEGDEC host compilation failed.' }
         & $portableCompiler -std=c++11 -Wall -Wextra -Werror -I src -I $jsonInclude -isystem $jpegInclude `
-            tests/display_tests.cpp tests/layout_tests.cpp tests/media_tests.cpp tests/jpeg_tests.cpp tests/file_image_tests.cpp src/media/file_image.cpp src/media/jpeg.cpp src/media/bmp.cpp src/media/image_renderer.cpp src/display/panel_layout.cpp src/display/panel_profile.cpp src/display/framebuffer.cpp src/display/diagnostics.cpp .build-temp/native-tests/jpegdec.o `
+            tests/display_tests.cpp tests/layout_tests.cpp tests/media_tests.cpp tests/jpeg_tests.cpp tests/file_image_tests.cpp tests/animation_tests.cpp src/media/animation.cpp src/media/file_image.cpp src/media/jpeg.cpp src/media/bmp.cpp src/media/image_renderer.cpp src/display/panel_layout.cpp src/display/panel_profile.cpp src/display/framebuffer.cpp src/display/diagnostics.cpp .build-temp/native-tests/jpegdec.o `
             -o .build-temp/native-tests/display-tests.exe
         if ($LASTEXITCODE -ne 0) { throw 'Host compilation failed.' }
         & '.\.build-temp\native-tests\display-tests.exe'
@@ -64,7 +64,7 @@ try {
     & cl.exe /nologo /EHsc /std:c++14 /w /I $jpegInclude /c "$jpegInclude\JPEGDEC.cpp" /Fo.build-temp/native-tests/jpegdec.obj
     if ($LASTEXITCODE -ne 0) { throw 'JPEGDEC host compilation failed.' }
     & cl.exe /nologo /EHsc /std:c++14 /W4 /I src /I $jsonInclude /I $jpegInclude `
-        tests/display_tests.cpp tests/layout_tests.cpp tests/media_tests.cpp tests/jpeg_tests.cpp tests/file_image_tests.cpp src/media/file_image.cpp src/media/jpeg.cpp src/media/bmp.cpp src/media/image_renderer.cpp src/display/panel_layout.cpp src/display/panel_profile.cpp src/display/framebuffer.cpp src/display/diagnostics.cpp .build-temp/native-tests/jpegdec.obj `
+        tests/display_tests.cpp tests/layout_tests.cpp tests/media_tests.cpp tests/jpeg_tests.cpp tests/file_image_tests.cpp tests/animation_tests.cpp src/media/animation.cpp src/media/file_image.cpp src/media/jpeg.cpp src/media/bmp.cpp src/media/image_renderer.cpp src/display/panel_layout.cpp src/display/panel_profile.cpp src/display/framebuffer.cpp src/display/diagnostics.cpp .build-temp/native-tests/jpegdec.obj `
         /Fo.build-temp/native-tests/ /Fe.build-temp/native-tests/display-tests.exe
     if ($LASTEXITCODE -ne 0) { throw 'Host compilation failed.' }
     & "$testOutput\display-tests.exe"

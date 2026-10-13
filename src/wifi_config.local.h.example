@@ -1,0 +1,6 @@
+#pragma once
+#define LED_STA_SSID "NAMA_WIFI_TUJUAN"
+#define LED_STA_PASSWORD "PASSWORD_WIFI_TUJUAN"
+// Optional overrides:
+// #define LED_AP_SSID "ESP32S3-LED-Controller"
+// #define LED_AP_PASSWORD "ledpanel123"

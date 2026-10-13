@@ -1,4 +1,6 @@
 #include "display/builtin_profiles.h"
+#include "display/hub75_mapping.h"
+#include "board/button.h"
 #include "display/diagnostics.h"
 #include "display/panel_profile.h"
 #include <cstdlib>
@@ -167,11 +169,68 @@ void testLayouts();
 void testMedia();
 void testJpeg();
 void testFileImages();
+void testAnimation();
 int main() {
   testProfiles(); testBuffers(); testDiagnostics();
+  board::DebouncedButton button;
+  button.begin(false,0);
+  assert(!button.update(true,10));
+  assert(!button.update(false,20));
+  assert(!button.update(true,25));
+  assert(!button.update(true,64));
+  assert(button.update(true,65));
+  assert(!button.update(true,1000));
+  assert(!button.update(false,1001));
+  assert(!button.update(false,1041));
+  assert(!button.update(true,1050));
+  assert(button.update(true,1090));
+  button.begin(true,0); // Held at boot cannot confirm by itself.
+  assert(!button.update(true,100));
+  assert(!button.update(false,110));
+  assert(!button.update(false,150));
+  assert(!button.update(true,160));
+  assert(button.update(true,200));
+  button.begin(false,0xfffffff0U);
+  assert(!button.update(true,0xfffffff8U));
+  assert(button.update(true,0x20U));
+  std::cout << "PASS: GPIO button debounce, held-at-boot, one press event, millis wrap\n";
+  display::PanelProfile hardware;
+  const char* error = nullptr;
+  assert(display::parseProfile(display::kHardwareProfileJson, sizeof(display::kHardwareProfileJson)-1, hardware, error));
+  assert(hardware.width == 128 && hardware.height == 64 && hardware.scan == 32 && hardware.addressLines == 5 && hardware.hub75e);
+  for (unsigned mode=0; mode<4; ++mode) {
+    bool seen[8192] = {};
+    for (int y=0; y<64; ++y) for (int x=0; x<128; ++x) {
+      uint16_t dx, dy;
+      assert(display::hub75Coordinates(x, y, mode, dx, dy));
+      assert(dx<256 && dy<32);
+      assert(!seen[dy*256+dx]); seen[dy*256+dx]=true;
+    }
+    for (bool pixel : seen) assert(pixel);
+  }
+  for (unsigned scan : {4U,8U,16U,32U}) {
+    bool seen[8192] = {};
+    for (int y=0;y<64;++y) for (int x=0;x<128;++x) {
+      uint16_t dx,dy;
+      assert(display::hub75BankCoordinates(x,y,scan,dx,dy));
+      const unsigned width=128*(32/scan);
+      assert(dx<width && dy<2*scan);
+      assert(!seen[dy*width+dx]); seen[dy*width+dx]=true;
+    }
+    for (bool pixel : seen) assert(pixel);
+  }
+  assert(display::validHub75Settings(4,5) && display::validHub75Settings(8,5));
+  assert(!display::validHub75Settings(4,0) && !display::validHub75Settings(32,5));
+  uint16_t dx, dy;
+  assert(!display::hub75Coordinates(-1, 0, 0, dx, dy));
+  assert(!display::hub75Coordinates(128, 0, 0, dx, dy));
+  assert(!display::hub75Coordinates(0, 64, 0, dx, dy));
+  assert(!display::hub75Coordinates(0, 0, 4, dx, dy));
+  std::cout << "PASS: HUB75 four mapping modes cover all 8192 electrical pixels without overlap\n";
   testLayouts();
   testMedia();
   testJpeg();
   testFileImages();
+  testAnimation();
   std::cout << "All software tests passed. Hardware output not tested.\n";
 }
