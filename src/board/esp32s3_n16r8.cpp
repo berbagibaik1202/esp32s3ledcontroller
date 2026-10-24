@@ -13,7 +13,12 @@ constexpr BoardProfile kProfile{
      // A, B, C, D, E (E reserved; use depends on panel addressing)
      8, 9, 10, 11, 12,
      // CLK, LAT, OE
-     13, 14, 18}, 19, 20, 17};
+     13, 14, 18},
+     19, 20, 17,
+     // microSD SPI: CS, SCK, MOSI, MISO
+     {21, 47, 39, 40},
+     // Audio I2S: BCLK, LRC, DOUT
+     {41, 42, 2}};
 static_assert(kProfile.confirmButton != kProfile.usbDm &&
               kProfile.confirmButton != kProfile.usbDp &&
               kProfile.confirmButton != kProfile.hub75.oe &&
@@ -22,6 +27,10 @@ static_assert(kProfile.confirmButton != kProfile.usbDm &&
               "Button must not overlap control/USB pins");
 static_assert(kProfile.hub75.oe != kProfile.usbDm &&
               kProfile.hub75.oe != kProfile.usbDp, "USB pins are reserved");
+static_assert(kProfile.sd.cs != kProfile.confirmButton &&
+              kProfile.sd.cs != kProfile.hub75.oe &&
+              kProfile.sd.sck != kProfile.hub75.clk,
+              "microSD must not conflict with HUB75 or button");
 }
 
 const BoardProfile& profile() { return kProfile; }

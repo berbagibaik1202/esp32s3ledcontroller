@@ -1,3 +1,49 @@
+# ESP32-S3 HUB75 LED Matrix Controller & Jam Digital Masjid
+
+## Firmware Update: Jam Digital Masjid, Jadwal Waktu Salat Astronomis, Audio I2S & microSD (Oktober 2026)
+
+Pembaruan firmware menambahkan fungsi lengkap **Jam Digital Masjid**, **Jadwal Waktu Salat Astronomis**, **Koreksi Menit Independen**, **Pengingat Audio Salat (I2S DMA)**, dan **Penyimpanan Media microSD (SPI)** tanpa mengganggu refresh panel HUB75, streaming MJPEG, atau kontrol web yang sudah ada.
+
+### Fitur Utama Baru:
+1. **Mode Jam Masjid (`MODE_MOSQUE`) pada HUB75 (128x64)**:
+   - Jam digital besar presisi (`HH:MM:SS`) dengan sinkronisasi waktu SNTP / NTP otomatis (WIB/WITA/WIT).
+   - Kalender Masehi lengkap dan Kalender Hijriah otomatis (algoritma astronomis Kuwaiti).
+   - Penanda waktu salat berikutnya (Subuh, Zuhur, Asar, Magrib, Isya) dan hitung mundur real-time (`T - MM:SS`).
+   - Ribbon 5 waktu salat dengan penanda highlight dinamis pada waktu salat aktif.
+   - Ikon indikator audio aktif saat pemutaran audio pengingat berlangsung.
+   - Fallback otomatis pada mode `MODE_AUTO` saat video stream offline/selesai.
+
+2. **Jadwal Waktu Salat Astronomis & Koreksi Menit**:
+   - Perhitungan posisi matahari astronomis standar **Kemenag RI** (Subuh -20°, Isya -18°, Asar faktor bayangan 1x, waktu Ihtiyat pengaman).
+   - Koreksi menit independen (-30 s/d +30 menit) per waktu salat tersimpan permanen di NVS Preferences (`prayer-cfg`).
+   - Dukungan mode kalkulasi otomatis maupun manual.
+
+3. **Pengingat Audio Salat via I2S**:
+   - Audio player non-blocking berjalan pada FreeRTOS background task di Core 0 menggunakan peripheral hardware `I2S_NUM_0`.
+   - Mendukung pemutaran file audio format WAV PCM dari kartu microSD (`/sd/media/audio/...`) atau internal LittleFS.
+   - Penjadwalan cerdas otomatis berbunyi N-menit sebelum masuk waktu salat (`effective_time - lead_minutes`).
+   - Kontrol volume master dan per-waktu salat, proteksi deduplikasi harian agar tidak berulang pada hari yang sama.
+
+4. **Penyimpanan microSD (SPI FSPI)**:
+   - Dukungan kartu microSD SPI (CS: GPIO21, SCK: GPIO38, MOSI: GPIO39, MISO: GPIO40) format FAT32/exFAT.
+   - Upload file multipart streaming langsung ke microSD (`/sd/media/`) atau internal flash (`/media/`).
+   - Manajemen kapasitas penyimpanan (Total, Terpakai, Sisa) dan penghapusan file lewat REST API & Web UI.
+
+5. **REST API v1 Baru**:
+   - `GET /api/v1/storage/status` : Status kapasitas microSD & LittleFS.
+   - `GET /api/v1/media` : Daftar media file pada microSD dan Flash beserta tipenya (audio, video, image).
+   - `POST /api/v1/media/upload?storage=sd|flash` : Upload streaming file.
+   - `DELETE /api/v1/media` / `POST /api/media/delete` : Hapus file.
+   - `GET /api/v1/prayer-times` : Jadwal salat dasar, koreksi, waktu efektif, dan waktu salat berikutnya.
+   - `POST /api/v1/prayer-times/settings` : Pengaturan koordinat lokasi, zona waktu, dan metode kalkulasi.
+   - `POST /api/v1/prayer-times/corrections` : Pengaturan koreksi menit per waktu salat (-30 s/d +30).
+   - `GET /api/v1/prayer-audio` : Status audio player, konfigurasi pengingat tiap waktu salat, dan event berikutnya.
+   - `POST /api/v1/prayer-audio` : Konfigurasi aktif/nonaktif, file WAV, lead-time menit, dan volume per waktu salat.
+   - `POST /api/v1/prayer-audio/test` : Uji pemutaran audio atau penghentian audio (`command=stop`).
+   - `GET /api/v1/clock/status` : Waktu sekarang, tanggal Masehi, Hijriah, dan status sinkronisasi NTP.
+
+---
+
 ## Firmware 0.7.0: preview konfigurasi panel
 
 Gunakan Uji scan (preview 30 detik), lalu sambungkan kembali dan tekan

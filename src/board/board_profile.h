@@ -10,6 +10,19 @@ struct Hub75Pins {
   int clk, lat, oe;
 };
 
+struct SdPins {
+  int cs;    // GPIO 21
+  int sck;   // GPIO 38
+  int mosi;  // GPIO 39
+  int miso;  // GPIO 40
+};
+
+struct AudioPins {
+  int bclk;  // GPIO 41
+  int lrc;   // GPIO 42
+  int dout;  // GPIO 2
+};
+
 struct BoardProfile {
   const char* name;
   uint32_t expectedFlashBytes;
@@ -17,6 +30,8 @@ struct BoardProfile {
   Hub75Pins hub75;
   int usbDm, usbDp;
   int confirmButton;
+  SdPins sd;
+  AudioPins audio;
 };
 
 const BoardProfile& profile();

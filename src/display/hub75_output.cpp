@@ -21,6 +21,7 @@ uint32_t lastGeneration = 0;
 uint32_t fpsWindowStarted = 0, windowFrames = 0, transferMicros = 0;
 float measuredFps = 0;
 uint8_t activeScan = 32;
+uint8_t activeBrightness = kDefaultBrightness;
 }
 bool hub75Ready() { return ready; }
 float hub75Fps() { return measuredFps; }
@@ -28,6 +29,7 @@ uint32_t hub75TransferMicros() { return transferMicros; }
 bool hub75Blanked() { return blanked; }
 unsigned hub75Mapping() { return mapping; }
 uint8_t hub75Scan() { return activeScan; }
+uint8_t hub75Brightness() { return activeBrightness; }
 bool beginHub75(uint8_t scan, unsigned selectedMapping) {
   if (!validHub75Settings(scan, selectedMapping)) return false;
   if (ready) return true;
@@ -57,17 +59,17 @@ bool beginHub75(uint8_t scan, unsigned selectedMapping) {
     Serial.println("[FAIL] HUB75 DMA initialization; output held blank");
     return false;
   }
-  output->setBrightness8(kHub75Brightness);
+  output->setBrightness8(blanked ? 0 : activeBrightness);
   output->clearScreen();
   output->flipDMABuffer();
   output->clearScreen();
   ready = true; dirty = true;
-  Serial.printf("[PASS] HUB75 DMA: 128x64 scan 1/%u clock=4MHz brightness=1/255 mapping=%u\n", activeScan, mapping);
+  Serial.printf("[PASS] HUB75 DMA: 128x64 scan 1/%u clock=4MHz brightness=%u/255 mapping=%u\n", activeScan, activeBrightness, mapping);
   return true;
 }
 bool hub75WifiTestActive() { return wifiTestActive; }
 void pauseHub75ForWifiTest() {
-  if (!ready || wifiTestActive) return;
+  if (!ready || !output || wifiTestActive) return;
   output->setBrightness8(0);
   delay(10); // Let DMA send OE blank before stopping the peripheral.
   output->stopDMAoutput();
@@ -84,24 +86,53 @@ void updateHub75(const Framebuffer& canvas, RgbOrder order) {
   if (wifiTestActive) {
     if (millis() - wifiTestStarted < 30000U) return;
     output->resumeDma();
-    output->setBrightness8(blanked ? 0 : kHub75Brightness);
+    output->setBrightness8(blanked ? 0 : activeBrightness);
     wifiTestActive = false; dirty = true;
     Serial.println("[RF TEST] HUB75 DMA resumed; brightness restored");
   }
   if (!ready || !canvas.front() || canvas.width() != 128 || canvas.height() != 64) return;
   if (!dirty && lastGeneration == canvas.generation()) return;
   const uint32_t transferStarted = micros();
-  // Only Arduino loop touches the CPU canvas and DMA back buffer; DMA refreshes
-  // its own front buffer independently, including during HTTP/upload/decode.
-  for (int y = 0; y < 64; ++y) {
-    for (int x = 0; x < 128; ++x) {
-      uint16_t dx, dy;
-      if (activeScan == 32) { dx = x; dy = y; }
-      else if (activeScan == 16) hub75Coordinates(x, y, mapping, dx, dy);
-      else hub75BankCoordinates(x, y, activeScan, dx, dy);
-      const uint16_t color = mapRgb565(canvas.front()[y * 128 + x], order);
-      output->drawPixelRGB888(dx, dy, ((color >> 11) & 31) * 255 / 31,
-          ((color >> 5) & 63) * 255 / 63, (color & 31) * 255 / 31);
+  const uint16_t* front = canvas.front();
+  if (activeScan == 32) {
+    for (int y = 0; y < 64; ++y) {
+      const uint16_t* row = &front[y * 128];
+      for (int x = 0; x < 128; ++x) {
+        uint16_t color = row[x];
+        if (order != RgbOrder::RGB) color = mapRgb565(color, order);
+        const uint8_t r = (color >> 11) & 0x1F;
+        const uint8_t g = (color >> 5) & 0x3F;
+        const uint8_t b = color & 0x1F;
+        output->drawPixelRGB888(x, y, (r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+      }
+    }
+  } else if (activeScan == 16) {
+    for (int y = 0; y < 64; ++y) {
+      const uint16_t* row = &front[y * 128];
+      for (int x = 0; x < 128; ++x) {
+        uint16_t dx, dy;
+        hub75Coordinates(x, y, mapping, dx, dy);
+        uint16_t color = row[x];
+        if (order != RgbOrder::RGB) color = mapRgb565(color, order);
+        const uint8_t r = (color >> 11) & 0x1F;
+        const uint8_t g = (color >> 5) & 0x3F;
+        const uint8_t b = color & 0x1F;
+        output->drawPixelRGB888(dx, dy, (r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+      }
+    }
+  } else {
+    for (int y = 0; y < 64; ++y) {
+      const uint16_t* row = &front[y * 128];
+      for (int x = 0; x < 128; ++x) {
+        uint16_t dx, dy;
+        hub75BankCoordinates(x, y, activeScan, dx, dy);
+        uint16_t color = row[x];
+        if (order != RgbOrder::RGB) color = mapRgb565(color, order);
+        const uint8_t r = (color >> 11) & 0x1F;
+        const uint8_t g = (color >> 5) & 0x3F;
+        const uint8_t b = color & 0x1F;
+        output->drawPixelRGB888(dx, dy, (r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+      }
     }
   }
   output->flipDMABuffer();
@@ -114,10 +145,20 @@ void nextHub75Mapping() {
   mapping = (mapping + 1) % 4; dirty = true;
   Serial.printf("HUB75 temporary mapping=%u; save via Web UI for persistence\n", mapping);
 }
+void setHub75Brightness(uint8_t brightness) {
+  if (brightness < 1) brightness = 1;
+  activeBrightness = brightness;
+  if (ready && output && !wifiTestActive) {
+    output->setBrightness8(blanked ? 0 : activeBrightness);
+  }
+}
+void setHub75Blank(bool blank) {
+  if (!ready || !output || wifiTestActive) return;
+  blanked = blank;
+  output->setBrightness8(blanked ? 0 : activeBrightness);
+  Serial.printf("HUB75 %s (brightness=%u/255)\n", blanked ? "BLANKED" : "UNBLANKED", blanked ? 0 : activeBrightness);
+}
 void toggleHub75Blank() {
-  if (!ready || wifiTestActive) return;
-  blanked = !blanked;
-  output->setBrightness8(blanked ? 0 : kHub75Brightness);
-  Serial.printf("HUB75 brightness=%u/255\n", blanked ? 0 : kHub75Brightness);
+  setHub75Blank(!blanked);
 }
 }  // namespace display
